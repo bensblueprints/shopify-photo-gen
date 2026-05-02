@@ -1,5 +1,6 @@
 let uploadedFiles = [];
 let currentJobId = null;
+let pollInterval = null;
 
 const dropzone = document.getElementById('dropzone');
 const fileInput = document.getElementById('fileInput');
@@ -14,7 +15,7 @@ const resultsSection = document.getElementById('resultsSection');
 const gallery = document.getElementById('gallery');
 const downloadAllBtn = document.getElementById('downloadAllBtn');
 
-// Dropzone events
+// Dropzone
 dropzone.addEventListener('click', () => fileInput.click());
 dropzone.addEventListener('dragover', (e) => {
     e.preventDefault();
@@ -28,7 +29,7 @@ dropzone.addEventListener('drop', (e) => {
 });
 fileInput.addEventListener('change', () => addFiles(fileInput.files));
 
-// Prompt presets
+// Presets
 document.querySelectorAll('.preset-btn').forEach(btn => {
     btn.addEventListener('click', () => {
         promptInput.value = btn.dataset.prompt;
@@ -73,7 +74,7 @@ generateBtn.addEventListener('click', async () => {
 
     // UI state
     generateBtn.disabled = true;
-    generateBtn.querySelector('.btn-text').textContent = 'Generating...';
+    generateBtn.querySelector('.btn-text').textContent = 'Starting...';
     generateBtn.querySelector('.spinner').classList.remove('hidden');
     progressSection.classList.remove('hidden');
     resultsSection.classList.add('hidden');
@@ -101,39 +102,79 @@ generateBtn.addEventListener('click', async () => {
         }
 
         currentJobId = data.job_id;
+        generateBtn.querySelector('.btn-text').textContent = 'Processing...';
 
-        // Simulate progress based on results
-        const total = uploadedFiles.length;
-        const processed = data.results.length + data.error_details.length;
-        const pct = (processed / total) * 100;
-        progressFill.style.width = `${pct}%`;
-        progressCount.textContent = `${processed} / ${total}`;
-
-        // Log results
-        data.results.forEach(r => {
-            logMessage(`✓ ${escapeHtml(r.original)} → ${escapeHtml(r.generated)}`, 'success');
-        });
-        data.error_details.forEach(e => {
-            logMessage(`✗ ${escapeHtml(e.original)}: ${escapeHtml(e.error)}`, 'error');
-        });
-
-        if (data.zip_available) {
-            await loadGallery(data.job_id);
-            resultsSection.classList.remove('hidden');
-        }
-
-        if (data.errors > 0 && data.success === 0) {
-            logMessage('All images failed to process. Check your API key and try again.', 'error');
-        }
+        // Start polling
+        startPolling(data.job_id);
 
     } catch (err) {
         logMessage(`Error: ${err.message}`, 'error');
-    } finally {
         generateBtn.disabled = false;
         generateBtn.querySelector('.btn-text').textContent = 'Generate Product Photos';
         generateBtn.querySelector('.spinner').classList.add('hidden');
     }
 });
+
+function startPolling(jobId) {
+    if (pollInterval) clearInterval(pollInterval);
+
+    pollInterval = setInterval(async () => {
+        try {
+            const res = await fetch(`/api/status/${jobId}`);
+            const data = await res.json();
+
+            if (!res.ok) {
+                clearInterval(pollInterval);
+                throw new Error(data.error || 'Failed to get status');
+            }
+
+            // Update progress
+            const pct = data.total > 0 ? (data.processed / data.total) * 100 : 0;
+            progressFill.style.width = `${pct}%`;
+            progressCount.textContent = `${data.processed} / ${data.total}`;
+
+            // Update log
+            progressLog.innerHTML = '';
+            data.results.forEach(r => {
+                logMessage(`✓ ${escapeHtml(r.original)} → ${escapeHtml(r.generated)}`, 'success');
+            });
+            data.errors.forEach(e => {
+                logMessage(`✗ ${escapeHtml(e.original)}: ${escapeHtml(e.error)}`, 'error');
+            });
+
+            if (data.current_file && data.status === 'processing') {
+                logMessage(`⏳ Processing: ${escapeHtml(data.current_file)}...`, 'info');
+            }
+
+            if (data.status === 'completed') {
+                clearInterval(pollInterval);
+                generateBtn.disabled = false;
+                generateBtn.querySelector('.btn-text').textContent = 'Generate Product Photos';
+                generateBtn.querySelector('.spinner').classList.add('hidden');
+
+                if (data.zip_available) {
+                    await loadGallery(jobId);
+                    resultsSection.classList.remove('hidden');
+                }
+
+                if (data.errors.length > 0 && data.results.length === 0) {
+                    logMessage('All images failed. Check API key and try again.', 'error');
+                } else if (data.errors.length > 0) {
+                    logMessage(`Done with ${data.errors.length} error(s).`, 'error');
+                } else {
+                    logMessage('All done! Download your ZIP below.', 'success');
+                }
+            }
+
+        } catch (err) {
+            clearInterval(pollInterval);
+            logMessage(`Poll error: ${err.message}`, 'error');
+            generateBtn.disabled = false;
+            generateBtn.querySelector('.btn-text').textContent = 'Generate Product Photos';
+            generateBtn.querySelector('.spinner').classList.add('hidden');
+        }
+    }, 2000); // Poll every 2 seconds
+}
 
 function logMessage(text, type) {
     const div = document.createElement('div');

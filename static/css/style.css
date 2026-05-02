@@ -317,6 +317,7 @@ body {
 
 .progress-log .log-success { color: var(--success); }
 .progress-log .log-error { color: var(--error); }
+.progress-log .log-info { color: var(--accent); }
 
 /* Results */
 .results-header {
