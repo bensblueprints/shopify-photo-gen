@@ -52,13 +52,21 @@ function removeFile(index) {
     updateGenerateButton();
 }
 
+function formatSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
 function renderFileList() {
+    const totalSize = uploadedFiles.reduce((sum, f) => sum + f.size, 0);
+    const sizeWarning = totalSize > 95 * 1024 * 1024 ? ' <span style="color:var(--error)">(too large!)</span>' : '';
     fileList.innerHTML = uploadedFiles.map((file, i) => `
         <div class="file-chip">
-            <span>${escapeHtml(file.name)}</span>
+            <span>${escapeHtml(file.name)} (${formatSize(file.size)})</span>
             <span class="remove" onclick="removeFile(${i})">&times;</span>
         </div>
-    `).join('');
+    `).join('') + (uploadedFiles.length > 0 ? `<div style="margin-top:8px;font-size:0.8rem;color:var(--text-secondary)">Total: ${formatSize(totalSize)}${sizeWarning}</div>` : '');
 }
 
 function updateGenerateButton() {
@@ -89,13 +97,34 @@ generateBtn.addEventListener('click', async () => {
     if (resolution) formData.append('resolution', resolution);
     uploadedFiles.forEach(file => formData.append('images', file));
 
+    // Check total file size (Cloudflare limit ~100MB)
+    const totalSize = uploadedFiles.reduce((sum, f) => sum + f.size, 0);
+    const totalSizeMB = totalSize / (1024 * 1024);
+    if (totalSizeMB > 95) {
+        alert(`Total upload size is ${totalSizeMB.toFixed(1)}MB. Max allowed is ~95MB. Please compress your images or upload in smaller batches.`);
+        generateBtn.disabled = false;
+        generateBtn.querySelector('.btn-text').textContent = 'Generate Product Photos';
+        generateBtn.querySelector('.spinner').classList.add('hidden');
+        return;
+    }
+
     try {
         const res = await fetch('/api/process', {
             method: 'POST',
             body: formData
         });
 
-        const data = await res.json();
+        let data;
+        const contentType = res.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+            data = await res.json();
+        } else {
+            const text = await res.text();
+            if (res.status === 413) {
+                throw new Error('Upload too large. Max total size is ~95MB. Compress images or upload fewer at a time.');
+            }
+            throw new Error(`Server returned ${res.status}: ${text.slice(0, 200)}`);
+        }
 
         if (!res.ok) {
             throw new Error(data.error || 'Processing failed');
