@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: shopify-photo-gen
+    environment:
+      - XAI_API_KEY=${XAI_API_KEY}
+      - PORT=5000
+    volumes:
+      - ./uploads:/app/uploads
+      - ./generated:/app/generated
+    networks:
+      - coolify
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.shopify-photo-gen-http.rule=Host(`photos.advancedmarketing.co`)"
+      - "traefik.http.routers.shopify-photo-gen-http.entrypoints=http"
+      - "traefik.http.routers.shopify-photo-gen-http.middlewares=redirect-to-https"
+      - "traefik.http.routers.shopify-photo-gen.rule=Host(`photos.advancedmarketing.co`)"
+      - "traefik.http.routers.shopify-photo-gen.entrypoints=https"
+      - "traefik.http.routers.shopify-photo-gen.tls=true"
+      - "traefik.http.routers.shopify-photo-gen.tls.certresolver=letsencrypt"
+      - "traefik.http.services.shopify-photo-gen.loadbalancer.server.port=5000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+networks:
+  coolify:
+    external: true

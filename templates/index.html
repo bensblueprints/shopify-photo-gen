@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shopify Product Photo Generator</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app">
+        <header class="header">
+            <div class="logo">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                    <circle cx="8.5" cy="8.5" r="1.5"/>
+                    <polyline points="21 15 16 10 5 21"/>
+                </svg>
+                <h1>Product Photo Gen</h1>
+            </div>
+            <p class="subtitle">Batch-generate Shopify-ready product photos with AI</p>
+        </header>
+
+        <main class="main">
+            <!-- Upload Section -->
+            <section class="card upload-section" id="uploadSection">
+                <div class="dropzone" id="dropzone">
+                    <input type="file" id="fileInput" multiple accept="image/*">
+                    <div class="dropzone-content">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="17 8 12 3 7 8"/>
+                            <line x1="12" y1="3" x2="12" y2="15"/>
+                        </svg>
+                        <p><strong>Click to upload</strong> or drag & drop</p>
+                        <span class="hint">PNG, JPG, WEBP up to 50MB each</span>
+                    </div>
+                </div>
+                <div class="file-list" id="fileList"></div>
+            </section>
+
+            <!-- Prompt Section -->
+            <section class="card prompt-section">
+                <label for="prompt" class="label">AI Prompt</label>
+                <textarea 
+                    id="prompt" 
+                    class="prompt-input" 
+                    rows="4" 
+                    placeholder="e.g. Professional studio product photo with clean white background, soft shadow, e-commerce catalog style, high-end commercial photography..."
+                ></textarea>
+                
+                <div class="prompt-presets">
+                    <span class="preset-label">Quick presets:</span>
+                    <button class="preset-btn" data-prompt="Professional studio product photo on clean white background, soft shadow, e-commerce catalog style, high-end commercial photography">Studio White</button>
+                    <button class="preset-btn" data-prompt="Lifestyle product photo in a modern minimalist interior, natural daylight, cozy atmosphere, Instagram-worthy">Lifestyle</button>
+                    <button class="preset-btn" data-prompt="Luxury product photography with dark gradient background, dramatic rim lighting, premium brand aesthetic">Luxury Dark</button>
+                    <button class="preset-btn" data-prompt="Clean flat lay product photo on marble surface, top-down view, soft natural light, Pinterest style">Flat Lay</button>
+                </div>
+
+                <div class="options-row">
+                    <div class="option">
+                        <label for="aspectRatio">Aspect Ratio</label>
+                        <select id="aspectRatio">
+                            <option value="auto">Auto (from image)</option>
+                            <option value="1:1">1:1 — Square</option>
+                            <option value="4:3">4:3 — Standard</option>
+                            <option value="3:4">3:4 — Portrait</option>
+                            <option value="16:9">16:9 — Widescreen</option>
+                            <option value="9:16">9:16 — Vertical</option>
+                            <option value="3:2">3:2 — Photo</option>
+                            <option value="2:3">2:3 — Portrait Photo</option>
+                        </select>
+                    </div>
+                    <div class="option">
+                        <label for="resolution">Resolution</label>
+                        <select id="resolution">
+                            <option value="">Standard</option>
+                            <option value="1k">1K</option>
+                            <option value="2k">2K</option>
+                        </select>
+                    </div>
+                </div>
+
+                <button class="generate-btn" id="generateBtn" disabled>
+                    <span class="btn-text">Generate Product Photos</span>
+                    <span class="spinner hidden"></span>
+                </button>
+            </section>
+
+            <!-- Progress Section -->
+            <section class="card progress-section hidden" id="progressSection">
+                <div class="progress-header">
+                    <h3>Processing Images</h3>
+                    <span class="progress-count" id="progressCount">0 / 0</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+                </div>
+                <div class="progress-log" id="progressLog"></div>
+            </section>
+
+            <!-- Results Section -->
+            <section class="card results-section hidden" id="resultsSection">
+                <div class="results-header">
+                    <h3>Generated Photos</h3>
+                    <button class="download-all-btn" id="downloadAllBtn">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="7 10 12 15 17 10"/>
+                            <line x1="12" y1="15" x2="12" y2="3"/>
+                        </svg>
+                        Download ZIP
+                    </button>
+                </div>
+                <div class="gallery" id="gallery"></div>
+            </section>
+        </main>
+
+        <footer class="footer">
+            <p>Powered by xAI Grok &bull; Built for Shopify merchants</p>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
