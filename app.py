@@ -1,6 +1,5 @@
 import os
 import base64
-import io
 import json
 import re
 import time
@@ -26,16 +25,16 @@ CORS(app)
 app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024
 app.config['UPLOAD_FOLDER'] = Path('uploads')
 app.config['GENERATED_FOLDER'] = Path('generated')
+app.config['JOBS_FOLDER'] = Path('jobs')
 app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg', 'webp', 'gif'}
 
 app.config['UPLOAD_FOLDER'].mkdir(exist_ok=True)
 app.config['GENERATED_FOLDER'].mkdir(exist_ok=True)
+app.config['JOBS_FOLDER'].mkdir(exist_ok=True)
 
 XAI_API_KEY = os.environ.get('XAI_API_KEY')
 XAI_BASE_URL = 'https://api.x.ai/v1'
 
-# In-memory job store
-jobs = {}
 jobs_lock = threading.Lock()
 
 
@@ -152,18 +151,42 @@ def create_zip_archive(files, zip_path):
             zf.write(file_path, arcname=file_path.name)
 
 
+# --- File-based job store ---
+
+def get_job_path(job_id):
+    return app.config['JOBS_FOLDER'] / f"{job_id}.json"
+
+
+def save_job(job_id, data):
+    path = get_job_path(job_id)
+    with jobs_lock:
+        with open(path, 'w') as f:
+            json.dump(data, f)
+
+
+def load_job(job_id):
+    path = get_job_path(job_id)
+    if not path.exists():
+        return None
+    with jobs_lock:
+        with open(path, 'r') as f:
+            return json.load(f)
+
+
+def update_job(job_id, **kwargs):
+    job = load_job(job_id)
+    if job:
+        job.update(kwargs)
+        save_job(job_id, job)
+
+
 def process_job(job_id, upload_dir, gen_dir, prompt, aspect_ratio, resolution, filenames):
     """Background job processor."""
-    def update_job(**kwargs):
-        with jobs_lock:
-            if job_id in jobs:
-                jobs[job_id].update(kwargs)
-
     results = []
     errors = []
     total = len(filenames)
 
-    update_job(status='processing', total=total, processed=0, current_file='')
+    update_job(job_id, status='processing', total=total, processed=0, current_file='')
 
     def process_one(idx_filename):
         idx, filename = idx_filename
@@ -206,6 +229,7 @@ def process_job(job_id, upload_dir, gen_dir, prompt, aspect_ratio, resolution, f
             else:
                 errors.append(res)
             update_job(
+                job_id,
                 processed=completed,
                 current_file=res['original'],
                 results=results.copy(),
@@ -220,6 +244,7 @@ def process_job(job_id, upload_dir, gen_dir, prompt, aspect_ratio, resolution, f
         create_zip_archive(generated_files, zip_path)
 
     update_job(
+        job_id,
         status='completed',
         zip_available=bool(results),
         zip_filename=zip_path.name if zip_path else None,
@@ -270,18 +295,17 @@ def start_processing():
         file.save(upload_path)
         filenames.append(original_filename)
 
-    # Initialize job
-    with jobs_lock:
-        jobs[job_id] = {
-            'status': 'starting',
-            'total': len(filenames),
-            'processed': 0,
-            'current_file': '',
-            'results': [],
-            'errors': [],
-            'zip_available': False,
-            'zip_filename': None
-        }
+    # Initialize job on disk
+    save_job(job_id, {
+        'status': 'starting',
+        'total': len(filenames),
+        'processed': 0,
+        'current_file': '',
+        'results': [],
+        'errors': [],
+        'zip_available': False,
+        'zip_filename': None
+    })
 
     # Start background thread
     thread = threading.Thread(
@@ -301,8 +325,7 @@ def start_processing():
 @app.route('/api/status/<job_id>')
 def get_status(job_id):
     """Poll for job progress."""
-    with jobs_lock:
-        job = jobs.get(job_id)
+    job = load_job(job_id)
     if not job:
         return jsonify({"error": "Job not found"}), 404
     return jsonify(job)

@@ -164,10 +164,12 @@ function startPolling(jobId) {
 
             // Update log
             progressLog.innerHTML = '';
-            data.results.forEach(r => {
+            const results = data.results || [];
+            const errors = data.errors || [];
+            results.forEach(r => {
                 logMessage(`✓ ${escapeHtml(r.original)} → ${escapeHtml(r.generated)}`, 'success');
             });
-            data.errors.forEach(e => {
+            errors.forEach(e => {
                 logMessage(`✗ ${escapeHtml(e.original)}: ${escapeHtml(e.error)}`, 'error');
             });
 
@@ -186,10 +188,12 @@ function startPolling(jobId) {
                     resultsSection.classList.remove('hidden');
                 }
 
-                if (data.errors.length > 0 && data.results.length === 0) {
+                const errCount = (data.errors || []).length;
+                const resCount = (data.results || []).length;
+                if (errCount > 0 && resCount === 0) {
                     logMessage('All images failed. Check API key and try again.', 'error');
-                } else if (data.errors.length > 0) {
-                    logMessage(`Done with ${data.errors.length} error(s).`, 'error');
+                } else if (errCount > 0) {
+                    logMessage(`Done with ${errCount} error(s).`, 'error');
                 } else {
                     logMessage('All done! Download your ZIP below.', 'success');
                 }
